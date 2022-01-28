@@ -13,6 +13,9 @@ LOG_MODULE_REGISTER(golioth_lightdb_stream, LOG_LEVEL_DBG);
 #include <net/golioth/wifi.h>
 #include <qcbor/qcbor.h>
 #include <stdlib.h>
+#include <modem/at_cmd.h>
+
+#define CONN_STAT_BUFFER_SIZE 64
 
 static struct golioth_client *client = GOLIOTH_SYSTEM_CLIENT_GET();
 
@@ -69,6 +72,18 @@ void main(void) {
   }
 
   golioth_system_client_start();
+
+  int ret = 0;
+	enum at_cmd_state at_state;
+  static uint8_t connStatBuffer[CONN_STAT_BUFFER_SIZE];
+	const char* cmd = "AT%XCONNSTAT?";
+  
+  LOG_DBG("Enable nrf9160 connection statistics gathering");
+
+	at_cmd_write("AT%XCONNSTAT=1", NULL, 0, NULL);
+	if (err != 0) {
+		printk("Could not enable connection statistics, error: %d\n", err);
+	}
 
   while (true) {
     QCBOREncodeContext ec;
@@ -139,6 +154,43 @@ void main(void) {
     }
 
     err = golioth_lightdb_set(client, GOLIOTH_LIGHTDB_STREAM_PATH("sensor"),
+                              COAP_CONTENT_FORMAT_APP_CBOR, buf, cbor_size);
+    if (err) {
+      LOG_WRN("Failed to send data: %d", err);
+    }
+
+
+    QCBOREncode_Init(&ec, cbor_buffer);
+    QCBOREncode_OpenMap(&ec);
+
+    ret = at_cmd_write(cmd, connStatBuffer, CONN_STAT_BUFFER_SIZE, &at_state);
+    if (ret) {
+      printk("at_cmd_write [%s] error:%d, at_state: %d\n",
+        cmd, ret, at_state);
+      strncpy(connStatBuffer, "error", CONN_STAT_BUFFER_SIZE);
+    }
+  
+    char * token = strtok(connStatBuffer, " ");
+
+    token = strtok(NULL, ",");
+    QCBOREncode_AddSZStringToMap(&ec, "SMS_Tx", token);
+    token = strtok(NULL, ",");
+    QCBOREncode_AddSZStringToMap(&ec, "SMS_Rx", token);
+    token = strtok(NULL, ",");
+    QCBOREncode_AddSZStringToMap(&ec, "Data_Tx(kB)", token);
+    token = strtok(NULL, ",");
+    QCBOREncode_AddSZStringToMap(&ec, "Data_Rx(kB)", token);
+    token = strtok(NULL, ",");
+    QCBOREncode_AddSZStringToMap(&ec, "Packet_Max_Size(B)", token);
+    token = strtok(NULL, ",");
+    QCBOREncode_AddSZStringToMap(&ec, "Packet_Min_Size(B)", token);
+
+    LOG_DBG("Connection stats: %s | Uptime: %d seconds\n", connStatBuffer, k_uptime_get_32() / 1000);
+
+    QCBOREncode_CloseMap(&ec);
+    qcerr = QCBOREncode_FinishGetSize(&ec, &cbor_size);
+
+    err = golioth_lightdb_set(client, GOLIOTH_LIGHTDB_STREAM_PATH("statistics"),
                               COAP_CONTENT_FORMAT_APP_CBOR, buf, cbor_size);
     if (err) {
       LOG_WRN("Failed to send data: %d", err);
