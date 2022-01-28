@@ -1,5 +1,4 @@
-Extended Golioth Light DB Stream Sample - Get Device Tree Sensors and build CBOR payload for the Thingy91
-+ Data Usage Statisctics
+Extended Golioth Light DB Stream Sample - Get Device Tree Sensors and build CBOR payload for the Thingy91 + Data Usage Statisctics
 ##############################
 
 Overview
@@ -8,7 +7,7 @@ Overview
 This sample extended the basic Light DB stream application, that demonstrates how to connect with Golioth and
 periodically send data to Light DB stream. In this sample, it gets sensors from the Zephyr Device Tree and dynamically build a CBOR payload
 to be send as measurements to ``/sensor`` Light DB Stream path.  It sends data usage statistics to ``/statistics`` Light DB Stream path. Usage statistics
-maximum resolution is kilobytes.
+minimum resolution is kilobytes.
 
 Tested with nrf connect sdk version 1.7.1
 
